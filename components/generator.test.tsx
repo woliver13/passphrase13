@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Generator } from "./generator";
 
@@ -46,5 +46,47 @@ describe("Generator", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /regenerate/i }));
     expect(screen.getByText("second-output")).toBeInTheDocument();
+  });
+});
+
+describe("Copy button", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+      writable: true,
+      configurable: true,
+    });
+  });
+  afterEach(() => { cleanup(); });
+
+  it("Copy button is present", () => {
+    render(<Generator />);
+    expect(screen.getByRole("button", { name: /^copy$/i })).toBeInTheDocument();
+  });
+
+  it("clicking Copy writes the current output to the clipboard", async () => {
+    render(<Generator />);
+    await userEvent.click(screen.getByRole("button", { name: /^copy$/i }));
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("mock-password-output");
+  });
+
+  it("button label changes to 'Copied!' immediately after clicking", async () => {
+    vi.useFakeTimers();
+    render(<Generator />);
+    fireEvent.click(screen.getByRole("button", { name: /^copy$/i }));
+    expect(screen.getByRole("button", { name: /copied!/i })).toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it("label resets to 'Copy' after 2 seconds", () => {
+    vi.useFakeTimers();
+    render(<Generator />);
+    fireEvent.click(screen.getByRole("button", { name: /^copy$/i }));
+    expect(screen.getByRole("button", { name: /copied!/i })).toBeInTheDocument();
+
+    act(() => { vi.advanceTimersByTime(2000); });
+    expect(screen.getByRole("button", { name: /^copy$/i })).toBeInTheDocument();
+    vi.useRealTimers();
   });
 });
